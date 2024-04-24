@@ -1,0 +1,4 @@
+name = "naiver_stokes_flow_simulation"
+uuid = "1d1fa518-2a39-4219-bb61-3f49edbbdb52"
+authors = ["Cristian David <cristian.pacheco@correounivalle.edu.co>"]
+version = "0.1.0"
