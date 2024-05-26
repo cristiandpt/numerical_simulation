@@ -1,11 +1,14 @@
 module naiver_stokes_flow_simulation
 
+# Backend dfor graphics generation.
 using CairoMakie
+
+# For symbolic computation
 using SymbolicUtils
-using LaTeXStrings
 using Symbolics
 
-    greet() = print("Hello World!")
+# For latex notation handles in code
+using LaTeXStrings
 
 
 # Newton-Raphson Method
@@ -74,8 +77,8 @@ using Symbolics
         matrix = Matrix{Float64}(undef, 5, 50)      # Create a 5x50 matrix with undefined values
         for i in 1:5                                # Populate the matrix
             for j in 1:50
-                if i == 1 && i == 5    # Set the first row and last row values to 0
-                    matrix[i, j] = 0.1
+                if i == 1 || i == 5    # Set the first row and last row values to 0
+                    matrix[i, j] = 0.5
                 else
                     matrix[i, j] = guessing_initial_values_equation(j)  # Set the rest of the values into the matrix to quadratic functions   
                 end
@@ -92,7 +95,7 @@ using Symbolics
 
     function generate_initial_matrix_with_bezier()              # Generate the initial matrix XO
 
-        p = 0.9
+        p = 0.5
         x, y = bezier_curve(50, p) 
         matrix = Matrix{Float64}(undef, 5, 50)      # Create a 5x50 matrix with undefined values
         for i in 1:5                                # Populate the matrix         
@@ -101,7 +104,7 @@ using Symbolics
         println(matrix)
 
         scale = ReversibleScale(x -> asinh(x / 2) / log(10), x -> 2sinh(log(10) * x))
-        fig, ax, hm = heatmap(transpose(matrix); fontsize = 28, colorscale = scale,  axis = (; xlabel = L"v_x~~donde~~v_{x_0} = 1", ylabel = L"v_y~~donde~~v_{x_i} = 0", title = L"\frac{-1}{2401}x^2 + \frac{2}{2401} + \frac{2400}{2401}") )
+        fig, ax, hm = heatmap(transpose(matrix); fontsize = 28, colorscale = scale,  axis = (; xlabel = L"v_x~~donde~~v_{x_0} = 1", ylabel = L"v_y~~donde~~v_{x_i} = 0") )
         Colorbar(fig[1, 2], hm)
 
         fig
@@ -153,7 +156,7 @@ using Symbolics
     end
 
 
-    system_equation = L"u_{i,j} = \frac{u_{i+1,j} + u_{i-1,j} + u_{i,j+1} + u_{i,j-1} - \frac{u_{i+1,j}u_{i,j}}{2} + \frac{u_{i-1,j}u_{i,j}}{2} + \frac{u_{i,j-1}w_{i,j}}{2} - \frac{u_{i,j+1}w_{i,j}}{2}}{4}"
+    system_equation = L"  "
 
 
     function create_system_equation()
@@ -161,10 +164,11 @@ using Symbolics
         matrix = Matrix{LaTeXString}(undef, 5, 50) 
         for i in 1:5
             for j in 1:50
-                matrix[i, j] = latexstring("u_{$i,$j} = \\frac{u_{$(i+1),$j)} + u_{$(i-1),$j} + u_{$i,$(j+1)} + u_{$i,$(j-1)} - \\frac{u_{$(i+1),$j}u_{$i,$j}}{2} + \\frac{u_{(i-1),$j}u_{$i,$j}}{2} + \\frac{u_{$i,$(j-1)}w_{$i,$j}}{2} - \\frac{u_{$i,$(j+1)}w_{$i,$j}}{2}}{4}")
+                matrix[i, j] = latexstring("u_{$i,$j} = \\frac{u_{$(i+1),$j} + u_{$(i-1),$j} + u_{$i,$(j+1)} + u_{$i,$(j-1)} - \\frac{u_{$(i+1),$j}u_{$i,$j}}{2} + \\frac{u_{$(i-1),$j}u_{$i,$j}}{2} + \\frac{u_{$i,$(j-1)}w_{$i,$j}}{2} - \\frac{u_{$i,$(j+1)}w_{$i,$j}}{2}}{4}")
             end
         end
-        println(matrix)        
+        #println(matrix)
+        matrix        
     end
     
 
@@ -172,15 +176,260 @@ using Symbolics
     function do_the_jacobian_matrix()
         # Create a 50x50 matrix of symbolic variables
         n = 50
-        jacobian = Symbolics.variables(Symbol("u"), 1:n, 1:n)
+        jacobian = Symbolics.variables(Symbol("u"), 1:5, 1:50)
         matrix = Matrix{LaTeXString}(undef, 5, 50) 
+        system_equation_matrix = create_system_equation() 
         for i in 1:5
             for j in 1:50
-                matrix[i, j] = latexstring(Differential(jacobian[3, 4])(system_equation))  # Compute ∂h/∂v_3_4
+                matrix[i, j] = latexstring(expand_derivatives(Differential(jacobian[i, j])(system_equation_matrix[ i, j])) )
+                println("La derivada parcial en in index $i, $j = $(matrix[i, j])") 
+                f1Exp = expand_derivatives(Differential(jacobian[i, j] )(system_equation_matrix[ i, j]))
+                println( "Expandido $f1Exp")
             end
         end
-        println(jacobian)   
+        #println(jacobian)   
     end
+
+
+
+    @variables i j u[i, j] w[i, j]
+    function derivate_partial()
+        # Define symbolic variables
+    
+
+        # Define the equation as a LaTeX string
+        eq_latex = "u_{i,j} = \\frac{u_{i+1,j} + u_{i-1,j} + u_{i,j+1} + u_{i,j-1} - \\frac{u_{i+1,j}u_{i,j}}{2} + \\frac{u_{i-1,j}u_{i,j}}{2} + \\frac{u_{i,j-1}w_{i,j}}{2} - \\frac{u_{i,j+1}w_{i,j}}{2}}{4}"
+
+        # Convert the LaTeXString to a symbolic expression
+       # eq_symbolic = latexstr(eq_latex)
+
+        # Parse the string into a symbolic expression
+        eq = SymbolicUtils.parse(SymbolicUtils.Sym, eq_latex)
+
+        # Compute partial derivatives with respect to i and j
+        du_di = diff(eq, i)
+        du_dj = diff(eq, j)
+
+        # Print the partial derivatives
+        println("Partial derivative with respect to i:")
+        display(du_di)
+        println("\nPartial derivative with respect to j:")
+        display(du_dj)
+    end
+
+
+    function other()
+
+        # Define the expression
+        @variables i j u[i, j] w[i, j]
+        
+        # Given expression
+        expr = (u[i + 1, j] + u[i - 1, j] + u[i, j + 1] + u[i, j - 1] -
+                u[i + 1, j] * u[i, j] / 2 + u[i - 1, j] * u[i, j] / 2 +
+                u[i, j - 1] * w[i, j] / 2 - u[i, j + 1] * w[i, j] / 2) / 4
+        
+        # Compute partial derivatives
+        ∂u_∂i = diff(expr, u[i, j], i)
+        ∂u_∂j = diff(expr, u[i, j], j)
+        
+        # Display the results
+        println("Partial derivative with respect to i:")
+        display(∂u_∂i)
+        
+        println("\nPartial derivative with respect to j:")
+        display(∂u_∂j)
+        
+    end
+
+
+    function other_f()
+        # Define symbolic variables
+        @variables i j u[i, j] w[i, j]
+
+        # Define the equation as a LaTeX string
+        eq_latex = L"u_{i,j} = \frac{u_{i+1,j} + u_{i-1,j} + u_{i,j+1} + u_{i,j-1} - \frac{u_{i+1,j}u_{i,j}}{2} + \frac{u_{i-1,j}u_{i,j}}{2} + \frac{u_{i,j-1}w_{i,j}}{2} - \frac{u_{i,j+1}w_{i,j}}{2}}{4}"
+
+        expr = string(eq_latex)
+        # Convert the LaTeXString to a symbolic expression
+        #eq_symbolic = parse(expr)
+
+        # Parse the string into a symbolic expression
+        eq = Symbolics.operation(eq_latex)
+
+        # Compute the Jacobian matrix
+        jacobian = Symbolics.jacobian([eq], [u[i, j] for i in 1:5, j in 1:50])
+
+        # Print the Jacobian matrix
+        display(jacobian)
+    
+    end     
+
+    @variables i j u[i, j] w[i, j] ip1 im1 jp1 jm1
+
+    @variables ip1(i) = i + 1
+    @variables im1(i) = i - 1
+    @variables jp1(j) = j + 1
+    @variables jm1(j) = j - 1
+
+    function f_symbolic()
+        return (u[ip1, j] + u[im1, j] + u[i, jp1] + u[i, jm1] -
+        (u[ip1, j] * u[i, j]) / 2 + (u[im1, j] * u[i, j]) / 2 +
+        (u[i, jm1] * w[i, j]) / 2 - (u[i, jp1] * w[i, j]) / 2) / 4
+    end
+
+    function ot()
+        eq = f_symbolic()
+        jacobian = Symbolics.jacobian([eq], [u[i, j] for i in 1:5, j in 1:50])
+        display(jacobian)
+    end    
+
+    using ForwardDiff
+
+    # Define the discretized function
+    function f(u, w, i, j)
+        ui = u[i, j]
+        uip1 = u[i+1, j]
+        uim1 = u[i-1, j]
+        ujp1 = u[i, j+1]
+        ujm1 = u[i, j-1]
+        wij = w[i, j]
+    
+        return (uip1 + uim1 + ujp1 + ujm1 - (uip1 * ui) / 2 + (uim1 * ui) / 2 + (ujm1 * wij) / 2 - (ujp1 * wij) / 2) / 4
+    end
+   function d() 
+    # Define the grid size
+        grid_size = (5, 50)
+        
+        # Initialize arrays for u and w
+        u = rand(grid_size)
+        w = rand(grid_size)
+        
+        # Compute the Jacobian matrix numerically
+        jacobian = zeros(grid_size)
+        for i in 1:grid_size[1], j in 1:grid_size[2]
+            jacobian[i, j] = ForwardDiff.derivative(x -> f(u, w, i, j), u[i, j])
+        end
+        
+        # Print the Jacobian matrix
+        display(jacobian)
+
+    end
+
+
+    function finite_difference_jacobian(u_function, u; h=1e-6,)
+        m, n = size(u)
+        J = zeros(m*n, m*n) 
+    
+        for i in 1:m
+            for j in 1:n
+                u_plus_h = copy(u)
+                u_plus_h[i, j] += h
+    
+                u_minus_h = copy(u)
+                u_minus_h[i, j] -= h
+    
+                F_plus_h = u_function(u_plus_h)
+                F_minus_h = u_function(u_minus_h)
+    
+                J[:, (i-1)*n+j] = (F_plus_h[:] - F_minus_h[:]) / (2 * h)
+            end
+        end
+    
+        return J
+    end
+
+
+    function forward_difference_jacobian(u_function, u; h=1e-6)
+        m, n = size(u)
+        J = zeros(m*n, m*n)
+    
+        for i in 1:m
+            for j in 1:n
+                u_plus_h = copy(u)
+                u_plus_h[i, j] += h
+    
+                F_plus_h = u_function(u_plus_h)
+    
+                J[:, (i-1)*n+j] = (F_plus_h[:] - u_function(u)[:]) / h
+            end
+        end
+    
+        return J
+    end
+
+    function backward_difference_jacobian(u_function, u; h=1e-6)
+        m, n = size(u)
+     
+        p = 0.5
+        x, y = bezier_curve(50, p) 
+        for i in 1:5                                # Populate the matrix         
+            u[i, :] = y # Set the rest of the values into the matrix to quadratic functions   
+        end
+
+        println(u)
+        J = zeros(m*n, m*n)
+    
+        for i in 2:m-1
+            for j in 2:n-1
+                u_minus_h = copy(u)
+                u_minus_h[i, j] -= h
+    
+                F_minus_h = u_function(u_minus_h, 1, i, j)
+    
+                J[:, (i-1)*n+j] = (u_function(u)[:] - F_minus_h[:]) / h
+            end
+        end
+        return J
+    end
+
+    using FiniteDifferences
+
+# Define the discretized function
+function f(u, w, i, j)
+    ui = u[i, j]
+    uip1 = u[i+1, j]
+    uim1 = u[i-1, j]
+    ujp1 = u[i, j+1]
+    ujm1 = u[i, j-1]
+    wij = 1 #w[i, j]
+
+    return (uip1 + uim1 + ujp1 + ujm1 - (uip1 * ui) / 2 + (uim1 * ui) / 2 + (ujm1 * wij) / 2 - (ujp1 * wij) / 2) / 4
+end
+
+
+function jacobian_finite_differenecs()
+# Define the grid size
+grid_size = (5, 50)
+n = grid_size[1] * grid_size[2]
+
+# Initialize arrays for u and w
+u = rand(grid_size)
+w = rand(grid_size)
+
+# Compute the Jacobian matrix using finite differences
+jacobian = zeros(n, n)
+for i in 1:grid_size[1], j in 1:grid_size[2]
+    idx = (i - 1) * grid_size[2] + j
+    jacobian[:, idx] = FiniteDifferences.finite_difference_jacobian(u -> f(u, w, i, j), u)
+end
+
+# Print the Jacobian matrix
+display(jacobian)
+
+# Get the machine epsilon
+epsilon = eps()
+end
+
+
+# Define a function to calculate the step size based on machine epsilon
+function calculate_step(epsilon)
+    return sqrt(epsilon)
+end
+function cal_eps()
+# Calculate the step size
+    step_size = calculate_step(epsilon)
+end
+# Use the step size in your computations
 
 
 end # module naiver_stokes_flow_simulation
